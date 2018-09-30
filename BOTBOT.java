@@ -22,7 +22,8 @@ public class BOTBOT implements Bot {
 	//weighted map between my previous plays and their next play
 	//then use my previous play to predict what they will play next
 	//and counter it
-	private HashMap<Move, HashMap<Move, Integer>> weightings;
+	//{ My previous move : [their previous move, age]}
+	private HashMap<Move, ArrayList<PreviousPlay>> weightings;
 	//key gets beaten by value
 	private HashMap<Move, ArrayList<Move>> rankings;
 	
@@ -36,37 +37,7 @@ public class BOTBOT implements Bot {
 		this.myDynamite = 100;
 		this.theirDynamite = 100;
 		
-		this.weightings = new HashMap<Move, HashMap<Move, Integer>>();
-		this.weightings.put(Move.R, new HashMap<Move, Integer>());
-		this.weightings.get(Move.R).put(Move.R, 0);
-		this.weightings.get(Move.R).put(Move.P, 0);
-		this.weightings.get(Move.R).put(Move.S, 0);
-		this.weightings.get(Move.R).put(Move.D, 0);
-		this.weightings.get(Move.R).put(Move.W, 0);
-		this.weightings.put(Move.P, new HashMap<Move, Integer>());
-		this.weightings.get(Move.P).put(Move.R, 0);
-		this.weightings.get(Move.P).put(Move.P, 0);
-		this.weightings.get(Move.P).put(Move.S, 0);
-		this.weightings.get(Move.P).put(Move.D, 0);
-		this.weightings.get(Move.P).put(Move.W, 0);
-		this.weightings.put(Move.S, new HashMap<Move, Integer>());
-		this.weightings.get(Move.S).put(Move.R, 0);
-		this.weightings.get(Move.S).put(Move.P, 0);
-		this.weightings.get(Move.S).put(Move.S, 0);
-		this.weightings.get(Move.S).put(Move.D, 0);
-		this.weightings.get(Move.S).put(Move.W, 0);
-		this.weightings.put(Move.D, new HashMap<Move, Integer>());
-		this.weightings.get(Move.D).put(Move.R, 0);
-		this.weightings.get(Move.D).put(Move.P, 0);
-		this.weightings.get(Move.D).put(Move.S, 0);
-		this.weightings.get(Move.D).put(Move.D, 0);
-		this.weightings.get(Move.D).put(Move.W, 0);
-		this.weightings.put(Move.W, new HashMap<Move, Integer>());
-		this.weightings.get(Move.W).put(Move.R, 0);
-		this.weightings.get(Move.W).put(Move.P, 0);
-		this.weightings.get(Move.W).put(Move.S, 0);
-		this.weightings.get(Move.W).put(Move.D, 0);
-		this.weightings.get(Move.W).put(Move.W, 0);
+		this.weightings = new HashMap<Move, ArrayList<PreviousPlay>>();
 		
 		this.rankings = new HashMap<Move, ArrayList<Move>>();
 		this.rankings.put(Move.R, new ArrayList<Move>());
@@ -94,11 +65,14 @@ public class BOTBOT implements Bot {
 			this.theirCurrentPlay = gamestate.getRounds().get(this.roundIndex-1).getP2();
 			
 			//add this play to weightings dictionary
-			this.weightings.get(this.myLastPlay).put(this.theirCurrentPlay, this.weightings.get(this.myLastPlay).get(this.theirCurrentPlay) + 1);
+			if (!this.weightings.containsKey(this.myLastPlay)) {
+				this.weightings.put(this.myLastPlay, new ArrayList<PreviousPlay>());
+			}
+			this.weightings.get(this.myLastPlay).add(new PreviousPlay(this.theirCurrentPlay, this.roundIndex));			
 			
 			//add the play again to increase the weighting if it resulted in winning that play
 			if (this.rankings.get(this.theirCurrentPlay).contains(this.myCurrentPlay)) {
-				this.weightings.get(this.myLastPlay).put(this.theirCurrentPlay, this.weightings.get(this.myLastPlay).get(this.theirCurrentPlay) + 1);
+				this.weightings.get(this.myLastPlay).add(new PreviousPlay(this.theirCurrentPlay, this.roundIndex));
 			}
 			
 			if (this.theirCurrentPlay.equals(Move.D)) {
@@ -141,17 +115,24 @@ public class BOTBOT implements Bot {
 	}
 	
 	private Move weightedMove() throws Exception {		
-		ArrayList<Move> weightedList = new ArrayList<Move>();
+		HashMap<Move, Double> weightedList = new HashMap<Move, Double>();
+		Double weight;
+		Float x;
 		
 		//get a weighted list of opponents plays
-		for (HashMap.Entry<Move, Integer> entry : this.weightings.get(this.myLastPlay).entrySet()) {
-			for (int i = 0; i <= entry.getValue(); i++) {
-				weightedList.add(entry.getKey());
+		for (PreviousPlay play : this.weightings.get(this.myLastPlay)) {
+			if (weightedList.containsKey(play.move)) {
+				weight = weightedList.get(play.move);
+			} else {
+				weight = (double) 0;
 			}
-		}		
+			x = (this.roundIndex - play.roundPlayedIn) / 8f;
+			weight += (1/Math.sqrt(2*Math.PI))*Math.pow(Math.E,(-(x*x)/2f));
+			weightedList.put(play.move, weight);
+		}	
 
 		try {
-			this.prediction = weightedList.get(r.nextInt(weightedList.size()));
+			this.prediction = getRandomWeighted(weightedList);
 		} catch (Exception e) {
 			this.prediction = randomMove();
 		}
@@ -159,6 +140,30 @@ public class BOTBOT implements Bot {
 		//get a random move that beats the prediction
 		//random to reduce the chance of another thing learning this ones behaviour
 		return this.rankings.get(this.prediction).get(r.nextInt(this.rankings.get(this.prediction).size()));
+	}
+	
+	private Move getRandomWeighted(HashMap<Move, Double> weightedList) {
+		ArrayList<Double> cumulativeWeighting = new ArrayList<Double>();
+		ArrayList<Move> moves = new ArrayList<Move>();
+		Double total = (double) 0;
+		Double num;
+		Move ret = randomMove();
+		
+		for (HashMap.Entry<Move, Double> entry : weightedList.entrySet()) {
+			total += entry.getValue();
+			cumulativeWeighting.add(total);
+			moves.add(entry.getKey());
+		}
+		
+		num = r.nextFloat() * total;
+		for (int i = 0; i < cumulativeWeighting.size(); i++) {
+			if (cumulativeWeighting.get(i) > num) {
+				ret = moves.get(i);
+				break;
+			}
+		}
+		
+		return ret;
 	}
 	
 	private Move randomMove() {
