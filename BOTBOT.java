@@ -8,7 +8,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
-public class TreeBot implements Bot {
+public class BOTBOT implements Bot {
 	private Gamestate gamestate;
 	private Random r;
 	private int roundIndex;
@@ -26,7 +26,7 @@ public class TreeBot implements Bot {
 	// weighted map between my previous plays and their next play
 	// then use my previous play to predict what they will play next
 	// and counter it
-	// { their previous move : [their current move, age]}
+	// { My previous move : [their previous move, age]}
 	private HashMap<Move, ArrayList<PreviousPlay>> weightings;
 	// key gets beaten by value
 	private HashMap<Move, ArrayList<Move>> rankings;
@@ -40,7 +40,7 @@ public class TreeBot implements Bot {
 
 	private boolean alreadyRemovedDynamite;
 
-	public TreeBot() {
+	public BOTBOT() {
 		this.r = new Random();
 
 		this.roundIndex = 0;
@@ -93,6 +93,10 @@ public class TreeBot implements Bot {
 		this.solidRankings.get(Move.W).add(Move.S);
 	}
 
+	// TODO
+	// currently bases its prediction of the next turn based on what i played, and their response to that
+	// could also base its prediction based purely on what they have played previously
+	// or a mix of both?
 	public Move makeMove(Gamestate gamestate) {
 		this.gamestate = gamestate;
 		this.roundIndex = gamestate.getRounds().size();
@@ -103,17 +107,17 @@ public class TreeBot implements Bot {
 			this.theirCurrentPlay = gamestate.getRounds().get(this.roundIndex - 1).getP2();
 
 			// make weightings dictionary for this play if it doesn't exist
-			if (!this.weightings.containsKey(this.theirLastPlay)) {
-				this.weightings.put(this.theirLastPlay, new ArrayList<PreviousPlay>());
+			if (!this.weightings.containsKey(this.myLastPlay)) {
+				this.weightings.put(this.myLastPlay, new ArrayList<PreviousPlay>());
 			}
 
 			// add this play to weightings dictionary
-			this.weightings.get(this.theirLastPlay).add(new PreviousPlay(this.theirCurrentPlay, this.roundIndex));
+			this.weightings.get(this.myLastPlay).add(new PreviousPlay(this.theirCurrentPlay, this.roundIndex));
 
 			// add again if they won the current play
 			// they're likely to have a strong inclination to respond with the same again
 			if (this.solidRankings.get(this.myCurrentPlay).contains(this.theirCurrentPlay)) {
-				this.weightings.get(this.theirLastPlay).add(new PreviousPlay(this.theirCurrentPlay, this.roundIndex));
+				this.weightings.get(this.myLastPlay).add(new PreviousPlay(this.theirCurrentPlay, this.roundIndex));
 			}
 
 			if (this.theirCurrentPlay.equals(Move.D)) {
@@ -201,11 +205,11 @@ public class TreeBot implements Bot {
 		}
 		
 		//prediction was correct if:
-		//	in cases that are the same as theirCurrentPlay:
+		//	in cases that are the same as myCurrentPlay:
 		//		this prediction == what they actually played next
 		for (Move prediction : this.predictions) {
 			for (int i = 0; i < this.roundIndex - 1; i++) {
-				if (this.gamestate.getRounds().get(i).getP1().equals(this.theirCurrentPlay)) {
+				if (this.gamestate.getRounds().get(i).getP1().equals(this.myCurrentPlay)) {
 					if (this.gamestate.getRounds().get(i+1).getP2().equals(prediction)) {
 						this.predictionAccuracy.put(prediction, this.predictionAccuracy.get(prediction) + 1.0);
 					}
@@ -214,17 +218,17 @@ public class TreeBot implements Bot {
 		}
 		
 		//choose best prediction by weight
-		return getRandomWeighted(this.predictionAccuracy);
+//		return getRandomWeighted(this.predictionAccuracy);
 		
-//		Move currentBestMove = Move.R;
-//		Double currentBestAccuracy = 0.0;
-//		for (HashMap.Entry<Move, Double> entry : this.predictionAccuracy.entrySet()) {
-//			if (entry.getValue() > currentBestAccuracy) {
-//				currentBestAccuracy = entry.getValue();
-//				currentBestMove = entry.getKey();
-//			}
-//		}
-//		return currentBestMove;
+		Move currentBestMove = Move.R;
+		Double currentBestAccuracy = 0.0;
+		for (HashMap.Entry<Move, Double> entry : this.predictionAccuracy.entrySet()) {
+			if (entry.getValue() > currentBestAccuracy) {
+				currentBestAccuracy = entry.getValue();
+				currentBestMove = entry.getKey();
+			}
+		}
+		return currentBestMove;
 	}
 
 	private Move weightedPrediction() throws Exception {		
@@ -233,8 +237,8 @@ public class TreeBot implements Bot {
 		
 		//get a weighted list of opponents plays against my current play
 		//ignore weightings against dynamite if they've run out
-		this.weightings.get(this.theirCurrentPlay).removeIf(entry -> entry.move.equals(Move.D) && this.theirDynamite < 1 );
-		for (PreviousPlay play : this.weightings.get(this.theirCurrentPlay)) {
+		this.weightings.get(this.myCurrentPlay).removeIf(entry -> entry.move.equals(Move.D) && this.theirDynamite < 1 );
+		for (PreviousPlay play : this.weightings.get(this.myCurrentPlay)) {
 			if (weightedList.containsKey(play.move)) {
 				weight = weightedList.get(play.move);
 			} else {
