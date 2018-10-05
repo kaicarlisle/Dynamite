@@ -8,7 +8,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
-public class BOTBOT implements Bot {
+public class BOTfly implements Bot {
 	private Gamestate gamestate;
 	private Random r;
 	private int roundIndex;
@@ -40,7 +40,7 @@ public class BOTBOT implements Bot {
 
 	private boolean alreadyRemovedDynamite;
 
-	public BOTBOT() {
+	public BOTfly() {
 		this.r = new Random();
 
 		this.roundIndex = 0;
