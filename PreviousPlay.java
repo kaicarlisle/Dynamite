@@ -8,4 +8,14 @@ public class PreviousPlay {
 		this.move = move;
 		this.roundPlayedIn = round;
 	}
+	
+	@Override
+	public boolean equals(Object o) {
+		if (o instanceof Move) {
+			PreviousPlay b = (PreviousPlay) o;
+			return this.move.equals(b.move);
+		} else {
+			return false;
+		}
+	}
 }
